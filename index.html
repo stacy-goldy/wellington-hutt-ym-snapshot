@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wellington & Hutt Stake • YM Snapshot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; }
+        .nav-active { border-bottom: 3px solid #f8b400; color: white; }
+        .heatmap-cell { transition: all 0.2s; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div class="max-w-5xl mx-auto">
+        
+        <!-- Header -->
+        <header class="bg-[#002f6c] text-white">
+            <div class="py-6 px-8 text-center">
+                <h1 class="text-4xl font-bold tracking-tight">Wellington & Hutt Stake</h1>
+                <p class="text-xl text-amber-300">YM Snapshot Tracker</p>
+            </div>
+            <div class="px-8 py-3 border-b border-white/20 flex justify-center gap-8 text-sm">
+                <button onclick="showTab(0)" class="nav-active pb-1 flex items-center gap-2" id="tab0"><i class="fa-solid fa-clipboard"></i> NEW SNAPSHOT</button>
+                <button onclick="showTab(1)" class="pb-1 flex items-center gap-2 hover:text-amber-300 transition" id="tab1"><i class="fa-solid fa-chart-bar"></i> DASHBOARD</button>
+                <button onclick="showTab(2)" class="pb-1 flex items-center gap-2 hover:text-amber-300 transition" id="tab2"><i class="fa-solid fa-list"></i> ALL SNAPSHOTS</button>
+            </div>
+        </header>
+
+        <!-- Tab 0: New Snapshot -->
+        <div id="tab-content-0" class="tab-content p-8">
+            <div class="bg-white rounded-2xl shadow-xl p-8 max-w-2xl mx-auto">
+                <h2 class="text-3xl font-bold mb-2 text-[#002f6c]">Ward YM Snapshot</h2>
+                <p class="text-gray-500 mb-8">One snapshot per unit per month</p>
+
+                <form id="snapshotForm" onsubmit="submitSnapshot(event)">
+                    <div class="grid grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Ward / Unit</label>
+                            <select id="ward" class="w-full border border-gray-300 rounded-xl px-5 py-4"></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Month</label>
+                            <select id="month" class="w-full border border-gray-300 rounded-xl px-5 py-4"></select>
+                        </div>
+                    </div>
+
+                    <div class="mb-8">
+                        <label class="block text-sm font-medium mb-2">1. Youth Leadership Check (1-5)</label>
+                        <p class="text-xs text-gray-500 mb-4">How much of your Wednesday night activities are actually planned and executed by the youth quorum presidencies right now?</p>
+                        <div class="flex gap-3 justify-center" id="leadershipButtons"></div>
+                        <input type="hidden" id="leadershipScore" value="3">
+                    </div>
+
+                    <div class="mb-8">
+                        <label class="block text-sm font-medium mb-2">2. The Four Areas Check</label>
+                        <p class="text-xs text-gray-500 mb-4">In the past 4-6 weeks, have your youth experienced activities that explicitly touched on:</p>
+                        <div class="grid grid-cols-2 gap-3" id="areasCheck"></div>
+                    </div>
+
+                    <div class="mb-8">
+                        <label class="block text-sm font-medium mb-2">3. Target Support Needed</label>
+                        <p class="text-xs text-gray-500 mb-3">What is the #1 thing our Stake Presidency can do to help next month?</p>
+                        <textarea id="support" rows="4" class="w-full border border-gray-300 rounded-2xl px-5 py-4" placeholder="e.g. Training for presidency members..."></textarea>
+                    </div>
+
+                    <button type="submit" class="w-full bg-[#002f6c] hover:bg-[#001f4a] text-white font-semibold py-5 rounded-2xl text-lg transition">
+                        Submit YM Snapshot
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tab 1: Dashboard -->
+        <div id="tab-content-1" class="tab-content hidden p-8">
+            <h2 class="text-3xl font-bold mb-6 text-[#002f6c]">Stake YM Dashboard</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10" id="summaryCards"></div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+                <div class="bg-white rounded-2xl shadow p-6"><h3 class="font-semibold mb-4">Leadership Distribution</h3><canvas id="leadershipChart"></canvas></div>
+                <div class="bg-white rounded-2xl shadow p-6"><h3 class="font-semibold mb-4">Four Areas Coverage</h3><canvas id="areasChart"></canvas></div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow p-6 mb-10">
+                <h3 class="font-semibold mb-4">Ward Leadership Heatmap</h3>
+                <div id="heatmap" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+            </div>
+        </div>
+
+        <!-- Tab 2: All Snapshots -->
+        <div id="tab-content-2" class="tab-content hidden p-8">
+            <h2 class="text-3xl font-bold mb-6 text-[#002f6c]">All YM Snapshots</h2>
+            <div id="allSnapshots" class="space-y-6"></div>
+        </div>
+    </div>
+
+    <script>
+        let snapshots = JSON.parse(localStorage.getItem('ymSnapshots')) || [];
+        let currentReporter = "Stake High Councilor";
+
+        const wards = ["Wellington Ward","Hataitai Ward","Hutt Valley Ward","Avalon Branch","Lower Hutt Ward","Upper Hutt Ward","Wairarapa Ward"];
+
+        function saveSnapshots() {
+            localStorage.setItem('ymSnapshots', JSON.stringify(snapshots));
+        }
+
+        function submitSnapshot(e) {
+            e.preventDefault();
+            const ward = document.getElementById('ward').value;
+            const month = document.getElementById('month').value;
+
+            if (snapshots.some(s => s.ward === ward && s.month === month)) {
+                alert(`A snapshot already exists for ${ward} in ${month}.`);
+                return;
+            }
+
+            const newSnap = {
+                id: Date.now(),
+                reporter: currentReporter,
+                ward: ward,
+                month: month,
+                date: new Date().toISOString().split('T')[0],
+                leadership: parseInt(document.getElementById('leadershipScore').value),
+                areas: {
+                    spiritual: document.getElementById('spiritual').checked,
+                    social: document.getElementById('social').checked,
+                    physical: document.getElementById('physical').checked,
+                    mental: document.getElementById('mental').checked
+                },
+                support: document.getElementById('support').value.trim()
+            };
+
+            snapshots.unshift(newSnap);
+            saveSnapshots();
+            alert(`✅ Snapshot saved for ${ward} (${month})`);
+            e.target.reset();
+            renderAll();
+            renderDashboard();   // Immediate dashboard update
+        }
+
+        function deleteSnapshot(id) {
+            if (confirm("Delete this snapshot permanently?")) {
+                snapshots = snapshots.filter(s => s.id !== id);
+                saveSnapshots();
+                renderAll();
+                renderDashboard();
+            }
+        }
+
+        function renderDashboard() {
+            const total = snapshots.length;
+            const avgLeadership = total ? (snapshots.reduce((a, s) => a + s.leadership, 0) / total).toFixed(1) : 0;
+
+            // Monthly Progress - Most recent month
+            const latestMonth = snapshots.length ? snapshots[0].month : null;
+            let monthlyAvg = 0;
+            if (latestMonth) {
+                const monthSnaps = snapshots.filter(s => s.month === latestMonth);
+                monthlyAvg = monthSnaps.length ? (monthSnaps.reduce((a,s) => a + s.leadership, 0) / monthSnaps.length).toFixed(1) : 0;
+            }
+
+            document.getElementById('summaryCards').innerHTML = `
+                <div class="bg-white rounded-3xl p-6 shadow text-center">
+                    <div class="text-5xl font-bold text-emerald-600">${total}</div>
+                    <div class="text-sm text-gray-500">Total Snapshots</div>
+                </div>
+                <div class="bg-white rounded-3xl p-6 shadow text-center">
+                    <div class="text-5xl font-bold text-amber-600">${avgLeadership}</div>
+                    <div class="text-sm text-gray-500">Overall Average</div>
+                </div>
+                <div class="bg-white rounded-3xl p-6 shadow text-center">
+                    <div class="text-5xl font-bold text-blue-600">${monthlyAvg}</div>
+                    <div class="text-sm text-gray-500">Monthly Progress</div>
+                    <div class="text-xs text-gray-400">${latestMonth || 'No data'}</div>
+                </div>`;
+
+            // Leadership Chart
+            const counts = [0,0,0,0,0];
+            snapshots.forEach(s => counts[s.leadership-1]++);
+            new Chart(document.getElementById('leadershipChart'), {
+                type: 'bar',
+                data: { labels: ['1','2','3','4','5'], datasets: [{ label: 'Snapshots', data: counts, backgroundColor: '#002f6c' }] },
+                options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 }}}}
+            });
+
+            // Four Areas
+            const areaCounts = {spiritual:0, social:0, physical:0, mental:0};
+            snapshots.forEach(s => {
+                if (s.areas.spiritual) areaCounts.spiritual++;
+                if (s.areas.social) areaCounts.social++;
+                if (s.areas.physical) areaCounts.physical++;
+                if (s.areas.mental) areaCounts.mental++;
+            });
+            new Chart(document.getElementById('areasChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Spiritual','Social','Physical','Mental'],
+                    datasets: [{ data: Object.values(areaCounts), backgroundColor: ['#6366f1','#ec4899','#14b8a6','#f59e0b'] }]
+                }
+            });
+
+            // Heatmap
+            let html = '';
+            wards.forEach(ward => {
+                const wardSnaps = snapshots.filter(s => s.ward === ward);
+                const avg = wardSnaps.length ? (wardSnaps.reduce((a,s) => a + s.leadership, 0) / wardSnaps.length).toFixed(1) : '—';
+                const color = wardSnaps.length ? `hsl(${avg * 25}, 85%, 55%)` : '#e5e7eb';
+                html += `<div class="heatmap-cell p-4 rounded-2xl text-center" style="background-color:${color}; color:${avg > 3 ? 'white' : 'black'}">
+                    <div class="font-medium">${ward}</div>
+                    <div class="text-3xl font-bold">${avg}</div>
+                </div>`;
+            });
+            document.getElementById('heatmap').innerHTML = html;
+        }
+
+        function renderAll() {
+            const sorted = [...snapshots].sort((a,b) => b.date.localeCompare(a.date));
+            let html = '';
+            sorted.forEach(s => {
+                const areas = Object.keys(s.areas).filter(k => s.areas[k]).map(k => k[0].toUpperCase() + k.slice(1)).join(" • ") || "None";
+                html += `
+                    <div class="bg-white rounded-2xl p-6 shadow">
+                        <div class="flex justify-between">
+                            <div>
+                                <span class="font-bold text-xl">${s.ward}</span>
+                                <span class="ml-4 text-gray-500">${s.month}</span>
+                            </div>
+                            <button onclick="deleteSnapshot(${s.id})" class="text-red-600 hover:bg-red-50 px-4 py-1 rounded-xl text-sm">Delete</button>
+                        </div>
+                        <div class="mt-3 text-lg font-semibold">Leadership: <span class="text-[#002f6c]">${s.leadership}/5</span></div>
+                        <div class="mt-2 text-sm"><strong>Areas:</strong> ${areas}</div>
+                        ${s.support ? `<div class="mt-4 p-4 bg-amber-50 rounded-2xl text-sm"><strong>Support Needed:</strong><br>${s.support}</div>` : ''}
+                    </div>`;
+            });
+            document.getElementById('allSnapshots').innerHTML = html || '<p class="text-gray-400 italic py-12 text-center">No snapshots yet.</p>';
+        }
+
+        function showTab(n) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-content-${n}`).classList.remove('hidden');
+            document.querySelectorAll('header button').forEach((btn, i) => {
+                if (i === n) btn.classList.add('nav-active');
+                else btn.classList.remove('nav-active');
+            });
+            if (n === 1) renderDashboard();
+            if (n === 2) renderAll();
+        }
+
+        window.onload = () => {
+            // Wards
+            const wardSelect = document.getElementById('ward');
+            wards.forEach(w => {
+                const opt = document.createElement('option');
+                opt.value = w; opt.textContent = w;
+                wardSelect.appendChild(opt);
+            });
+
+            // Months
+            const monthSelect = document.getElementById('month');
+            const now = new Date();
+            for (let i = 0; i < 12; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+                const text = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = text;
+                if (i === 0) opt.selected = true;
+                monthSelect.appendChild(opt);
+            }
+
+            // Leadership buttons
+            let btnHTML = '';
+            for (let i = 1; i <= 5; i++) {
+                btnHTML += `<button type="button" onclick="setLeadership(${i})" id="lead${i}" class="w-14 h-14 rounded-2xl border-2 text-2xl font-bold ${i===3 ? 'bg-[#002f6c] text-white' : ''}">${i}</button>`;
+            }
+            document.getElementById('leadershipButtons').innerHTML = btnHTML;
+
+            // Areas
+            let areaHTML = '';
+            ['spiritual','social','physical','mental'].forEach(area => {
+                areaHTML += `<label class="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl cursor-pointer"><input type="checkbox" id="${area}" class="w-5 h-5 accent-[#002f6c]"> <span>${area.charAt(0).toUpperCase() + area.slice(1)} growth</span></label>`;
+            });
+            document.getElementById('areasCheck').innerHTML = areaHTML;
+
+            showTab(0);
+        };
+
+        function setLeadership(score) {
+            document.getElementById('leadershipScore').value = score;
+            for (let i = 1; i <= 5; i++) {
+                const btn = document.getElementById(`lead${i}`);
+                if (btn) {
+                    btn.classList.toggle('bg-[#002f6c]', i === score);
+                    btn.classList.toggle('text-white', i === score);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
