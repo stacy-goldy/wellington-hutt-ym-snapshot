@@ -18,17 +18,17 @@ with st.sidebar:
     
     ward = st.selectbox("Ward / Unit", wards)
     
-    # Month selector
-    current_month = datetime.now().strftime("%Y-%m")
-    months = [current_month]
-    for i in range(1, 12):
-        d = datetime.now().replace(month=datetime.now().month - i)
-        if d.month > datetime.now().month:
-            d = d.replace(year=d.year - 1)
+    # Safe month selector (last 12 months)
+    months = []
+    current = datetime.now()
+    for i in range(12):
+        d = current.replace(day=1) - pd.DateOffset(months=i)
         months.append(d.strftime("%Y-%m"))
+    
     month = st.selectbox("Month", months, index=0)
 
-    leadership = st.slider("1. Youth Leadership Check (1-5)", 1, 5, 3, help="How much are the youth presidencies actually planning and running activities?")
+    leadership = st.slider("1. Youth Leadership Check (1-5)", 1, 5, 3, 
+                          help="How much are the youth presidencies actually planning and running activities?")
 
     st.write("**2. The Four Areas Check** (select all that apply)")
     spiritual = st.checkbox("Spiritual Growth")
@@ -49,7 +49,7 @@ with st.sidebar:
             "physical": physical,
             "mental": mental,
             "support": support,
-            "submitted_by": currentReporter if 'currentReporter' in locals() else "Stake Leader",
+            "submitted_by": "Stake Leader",
             "date": datetime.now().strftime("%Y-%m-%d %H:%M")
         }
         st.session_state.snapshots.insert(0, new_entry)
@@ -65,7 +65,12 @@ if not df.empty:
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Snapshots", len(df))
     col2.metric("Average Leadership", f"{df['leadership'].mean():.1f}/5")
-    col3.metric("Monthly Progress", f"{df.groupby('month')['leadership'].mean().iloc[-1]:.1f}/5")
+    
+    # Monthly Progress (most recent month)
+    latest_month = df['month'].max()
+    monthly_df = df[df['month'] == latest_month]
+    monthly_avg = monthly_df['leadership'].mean() if not monthly_df.empty else 0
+    col3.metric("Monthly Progress", f"{monthly_avg:.1f}/5", f"{latest_month}")
 
     # Charts
     st.subheader("Leadership Distribution")
@@ -91,4 +96,4 @@ if not df.empty:
 else:
     st.info("No snapshots submitted yet. Use the sidebar to add the first one.")
 
-st.caption("Data is currently stored in session. For permanent shared storage, we can connect to Google Sheets later.")
+st.caption("Data is saved in your browser session for now.")
