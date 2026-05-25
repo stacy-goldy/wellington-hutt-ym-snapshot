@@ -1,30 +1,39 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import gspread
-from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="YM Snapshot", layout="wide", page_icon="⛪")
 st.title("Wellington & Hutt Stake • YM Snapshot Tracker")
 
 # ==================== GOOGLE SHEETS SETUP ====================
-SHEET_NAME = "YM_Snapshots"  # Change this if you want
-
-# You will need to add your credentials as a secret in Streamlit
 if 'gsheet' not in st.session_state:
-    try:
-        creds_dict = st.secrets["gcp_service_account"]
-        credentials = Credentials.from_service_account_info(creds_dict, scopes=["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"])
-        gc = gspread.authorize(credentials)
-        sh = gc.open(SHEET_NAME)
-        worksheet = sh.sheet1
-        st.session_state.gsheet = worksheet
-        st.success("✅ Connected to Google Sheets")
-    except Exception as e:
-        st.error("Google Sheets not configured yet. See setup instructions below.")
-        st.session_state.gsheet = None
+    st.session_state.gsheet = None
 
-# Load data from Google Sheets
+# Try to connect to Google Sheets
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+    
+    creds_dict = st.secrets["gcp_service_account"]
+    credentials = Credentials.from_service_account_info(
+        creds_dict, 
+        scopes=["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    )
+    gc = gspread.authorize(credentials)
+    sh = gc.open("YM_Snapshots")          # Make sure sheet name matches
+    worksheet = sh.sheet1
+    st.session_state.gsheet = worksheet
+    st.success("✅ Connected to Google Sheets")
+except Exception as e:
+    st.warning("⚠️ Google Sheets is not connected yet.")
+    st.info("""
+    **How to connect Google Sheets:**
+    1. Create a Google Sheet named **YM_Snapshots**
+    2. Go to Streamlit → Manage App → Secrets
+    3. Add your service account credentials under `gcp_service_account`
+    """)
+
+# Load data
 def load_data():
     if st.session_state.gsheet:
         try:
@@ -61,18 +70,19 @@ with st.sidebar:
     physical = st.checkbox("Physical Growth")
     mental = st.checkbox("Mental Growth")
 
-    support = st.text_area("3. Target Support Needed", placeholder="What can the Stake Presidency help with?")
+    support = st.text_area("3. Target Support Needed", 
+                          placeholder="What is the #1 thing the Stake Presidency can help with?")
 
     if st.button("Submit Snapshot", type="primary"):
         if st.session_state.gsheet is None:
-            st.error("Google Sheets not connected.")
+            st.error("Google Sheets not connected. Please set up secrets first.")
         else:
             new_row = [
                 ward, month, leadership, spiritual, social, physical, mental, 
                 support, datetime.now().strftime("%Y-%m-%d %H:%M")
             ]
             st.session_state.gsheet.append_row(new_row)
-            st.success(f"✅ Snapshot saved for {ward} ({month})")
+            st.success(f"✅ Snapshot saved for **{ward}** ({month})")
             st.rerun()
 
 # ==================== MAIN DASHBOARD ====================
@@ -81,35 +91,35 @@ if not df.empty:
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Snapshots", len(df))
-    col2.metric("Average Leadership", f"{df['leadership'].mean():.1f}/5")
+    col2.metric("Average Leadership", f"{df['leadership'].mean():.1f}/5" if 'leadership' in df.columns else "—")
     
-    latest_month = df['month'].max() if 'month' in df.columns else None
-    if latest_month:
+    if 'month' in df.columns:
+        latest_month = df['month'].max()
         monthly_avg = df[df['month'] == latest_month]['leadership'].mean()
         col3.metric("Monthly Progress", f"{monthly_avg:.1f}/5", latest_month)
 
     # Charts
-    st.subheader("Leadership Distribution")
-    st.bar_chart(df['leadership'].value_counts().sort_index())
+    if 'leadership' in df.columns:
+        st.subheader("Leadership Distribution")
+        st.bar_chart(df['leadership'].value_counts().sort_index())
 
     st.subheader("Four Areas Coverage")
-    area_data = {
-        "Spiritual": df['spiritual'].sum() if 'spiritual' in df.columns else 0,
-        "Social": df['social'].sum() if 'social' in df.columns else 0,
-        "Physical": df['physical'].sum() if 'physical' in df.columns else 0,
-        "Mental": df['mental'].sum() if 'mental' in df.columns else 0
-    }
-    st.bar_chart(area_data)
+    area_data = {}
+    for col in ['spiritual', 'social', 'physical', 'mental']:
+        if col in df.columns:
+            area_data[col.capitalize()] = df[col].sum()
+    if area_data:
+        st.bar_chart(area_data)
 
     st.subheader("Ward Performance")
-    if 'ward' in df.columns:
+    if 'ward' in df.columns and 'leadership' in df.columns:
         ward_avg = df.groupby("ward")["leadership"].mean().round(1)
         st.bar_chart(ward_avg)
 
     st.subheader("All Snapshots")
-    st.dataframe(df.sort_values("date", ascending=False), use_container_width=True)
+    st.dataframe(df.sort_values("date", ascending=False) if 'date' in df.columns else df, use_container_width=True)
 
 else:
     st.info("No snapshots yet. Use the sidebar to submit the first one.")
 
-st.caption("Data is stored in Google Sheets - visible to everyone with access.")
+st.caption("Data is stored in Google Sheets • Shared with all stake leaders")
