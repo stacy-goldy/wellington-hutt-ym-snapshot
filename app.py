@@ -26,20 +26,26 @@ with st.sidebar:
         months.append(d.strftime("%Y-%m"))
     month = st.selectbox("Month", months, index=0)
 
-    # Updated Leadership Section with clear guide text
+    # Leadership - Enhanced Slider with visible numbers
     st.write("**1. Youth Leadership Check (1-5)**")
     st.caption("**How involved were quorum members in activity planning:** 1 = entirely planned by adult leaders, 5 = entirely planned by youth leaders")
     
-    # Custom styled slider with visible numbers
-    leadership = st.slider("", 1, 5, 3, label_visibility="collapsed")
+    leadership = st.slider(
+        label="Leadership Score",
+        min_value=1,
+        max_value=5,
+        value=3,
+        step=1,
+        label_visibility="collapsed"
+    )
     
     # Display numbers below slider
     cols = st.columns(5)
     for i, col in enumerate(cols, 1):
         if i == leadership:
-            col.markdown(f"<p style='text-align:center; color:#ef4444; font-weight:bold;'>{i}</p>", unsafe_allow_html=True)
+            col.markdown(f"<div style='text-align:center; color:#dc2626; font-weight:bold; font-size:1.1rem;'>{i}</div>", unsafe_allow_html=True)
         else:
-            col.markdown(f"<p style='text-align:center; color:#6b7280;'>{i}</p>", unsafe_allow_html=True)
+            col.markdown(f"<div style='text-align:center; color:#6b7280;'>{i}</div>", unsafe_allow_html=True)
 
     st.write("**2. The Four Areas Check**")
     st.caption("During this month, which of the four focus areas were activities centred around:")
