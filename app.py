@@ -43,6 +43,7 @@ st.markdown("""
         border-radius: 1rem;
         text-align: center;
         transition: transform 0.2s;
+        font-weight: 600;
     }
     .heatmap-box:hover {
         transform: scale(1.03);
@@ -112,14 +113,9 @@ if st.session_state.current_tab == 0:
         st.markdown("**1. Youth Leadership Check (1-5)**")
         st.caption("How much of your Wednesday night activities are actually planned and executed by the youth quorum presidencies right now?")
 
-        # Number labels above slider
         st.markdown("""
             <div class="number-labels">
-                <div>1</div>
-                <div>2</div>
-                <div>3</div>
-                <div>4</div>
-                <div>5</div>
+                <div>1</div><div>2</div><div>3</div><div>4</div><div>5</div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -170,7 +166,7 @@ if st.session_state.current_tab == 0:
                 }
                 st.session_state.snapshots.insert(0, new_snap)
                 st.success(f"✅ Snapshot saved for **{ward}** ({selected_month})")
-                st.session_state.leadership_score = 3  # Reset for next use
+                st.session_state.leadership_score = 3
                 st.rerun()
 
 # ====================== TAB 1: DASHBOARD ======================
@@ -213,20 +209,35 @@ elif st.session_state.current_tab == 1:
             }
             st.bar_chart(area_counts)
 
+        # ==================== IMPROVED HEATMAP ====================
         st.subheader("Ward Leadership Heatmap")
         heatmap_cols = st.columns(4)
+        
         for i, ward in enumerate(wards):
             ward_snaps = [s for s in snapshots if s['ward'] == ward]
             avg = round(sum(s['leadership'] for s in ward_snaps) / len(ward_snaps), 1) if ward_snaps else None
-            color_intensity = int((avg - 1) * 25) if avg else 10
-            bg_color = f"hsl({color_intensity}, 85%, 55%)" if avg else "#e5e7eb"
-            text_color = "white" if avg and avg > 3 else "black"
             
+            if avg:
+                # Calculate color (1 = red, 5 = green)
+                hue = int(0 + (avg - 1) * 30)  # 0=red → 120=green
+                bg_color = f"hsl({hue}, 85%, 52%)"
+                
+                # Better contrast logic
+                if avg >= 4.0:
+                    text_color = "#111111"      # Dark text for bright backgrounds
+                elif avg >= 3.0:
+                    text_color = "#222222"
+                else:
+                    text_color = "white"        # White text for darker/red backgrounds
+            else:
+                bg_color = "#e5e7eb"
+                text_color = "#666666"
+
             with heatmap_cols[i % 4]:
                 st.markdown(f"""
                 <div class="heatmap-box" style="background-color: {bg_color}; color: {text_color};">
-                    <div style="font-weight:600;">{ward}</div>
-                    <div style="font-size:2.5rem; font-weight:bold;">{avg if avg else '—'}</div>
+                    <div style="font-size:0.95rem; margin-bottom:4px;">{ward}</div>
+                    <div style="font-size:2.6rem; font-weight:700;">{avg if avg else '—'}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
