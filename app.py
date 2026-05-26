@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import json
 
 st.set_page_config(page_title="YM Snapshot", layout="wide", page_icon="⛪")
 
@@ -24,17 +23,30 @@ st.markdown("""
         height: 3.5rem;
         font-size: 1.1rem;
     }
-    .nav-button {
-        background: none;
-        border: none;
-        color: white;
-        padding: 0.5rem 1rem;
-        cursor: pointer;
-        font-size: 0.95rem;
+    .leadership-container {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin: 1.2rem 0;
     }
-    .nav-active {
-        border-bottom: 3px solid #f8b400;
+    .leadership-btn {
+        width: 68px;
+        height: 68px;
+        border-radius: 9999px;
+        border: 3px solid #e5e7eb;
+        background: white;
+        font-size: 1.9rem;
         font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+    .leadership-btn.selected {
+        background: #dc2626 !important;
+        color: white !important;
+        border-color: #dc2626;
+        box-shadow: 0 10px 15px -3px rgb(220 38 38 / 0.4);
     }
     .snapshot-card {
         background: white;
@@ -51,34 +63,6 @@ st.markdown("""
     }
     .heatmap-box:hover {
         transform: scale(1.03);
-    }
-    
-    /* Leadership Score Buttons */
-    .leadership-container {
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-        margin: 1rem 0;
-    }
-    .leadership-btn {
-        width: 65px;
-        height: 65px;
-        border-radius: 9999px;
-        border: 3px solid #e5e7eb;
-        background: white;
-        font-size: 1.8rem;
-        font-weight: bold;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .leadership-btn.selected {
-        background: #dc2626 !important;
-        color: white !important;
-        border-color: #dc2626;
-        box-shadow: 0 10px 15px -3px rgb(220 38 38 / 0.3);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -102,7 +86,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Navigation Tabs
+# Navigation
 col1, col2, col3 = st.columns([1,1,1])
 with col1:
     if st.button("📋 NEW SNAPSHOT", use_container_width=True, type="primary" if st.session_state.current_tab == 0 else "secondary"):
@@ -122,6 +106,20 @@ if st.session_state.current_tab == 0:
     st.markdown("### Ward YM Snapshot")
     st.caption("One snapshot per unit per month")
 
+    # Leadership Score Selector (Outside Form)
+    st.markdown("**1. Youth Leadership Check (1-5)**")
+    st.caption("How much of your Wednesday night activities are actually planned and executed by the youth quorum presidencies right now?")
+
+    cols = st.columns(5)
+    for i in range(1, 6):
+        with cols[i-1]:
+            if st.session_state.leadership_score == i:
+                st.markdown(f'<div class="leadership-btn selected">{i}</div>', unsafe_allow_html=True)
+            else:
+                if st.button(str(i), key=f"lead_btn_{i}"):
+                    st.session_state.leadership_score = i
+                    st.rerun()
+
     with st.form("snapshot_form", clear_on_submit=True):
         col_a, col_b = st.columns(2)
         with col_a:
@@ -138,26 +136,8 @@ if st.session_state.current_tab == 0:
             month_options = [m[1] for m in months]
             month_values = [m[0] for m in months]
             selected_month_idx = st.selectbox("Month", range(len(month_options)), 
-                                            format_func=lambda x: month_options[x], index=0)
+                                            format_func=lambda x: month_options[x], index=0, key="month_input")
             selected_month = month_values[selected_month_idx]
-
-        st.markdown("**1. Youth Leadership Check (1-5)**")
-        st.caption("How much of your Wednesday night activities are actually planned and executed by the youth quorum presidencies right now?")
-        
-        # Custom Leadership Buttons
-        st.markdown('<div class="leadership-container">', unsafe_allow_html=True)
-        
-        for i in range(1, 6):
-            if st.session_state.leadership_score == i:
-                btn_style = "leadership-btn selected"
-            else:
-                btn_style = "leadership-btn"
-            
-            if st.button(str(i), key=f"lead_{i}", help=f"Score {i}"):
-                st.session_state.leadership_score = i
-                st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("**2. The Four Areas Check**")
         st.caption("In the past 4-6 weeks, have your youth experienced activities that explicitly touched on:")
@@ -197,11 +177,11 @@ if st.session_state.current_tab == 0:
                 }
                 st.session_state.snapshots.insert(0, new_snap)
                 st.success(f"✅ Snapshot saved for **{ward}** ({selected_month})")
-                # Reset leadership for next entry
+                # Reset for next entry
                 st.session_state.leadership_score = 3
                 st.rerun()
 
-# ====================== TAB 1: DASHBOARD ======================
+# ====================== TAB 1 & 2 remain the same ======================
 elif st.session_state.current_tab == 1:
     snapshots = st.session_state.snapshots
     total = len(snapshots)
@@ -209,7 +189,6 @@ elif st.session_state.current_tab == 1:
     st.markdown("### Stake YM Dashboard")
     
     col1, col2, col3 = st.columns(3)
-    
     avg_leadership = round(sum(s['leadership'] for s in snapshots) / total, 1) if total > 0 else 0
     latest_month = snapshots[0]['month'] if snapshots else None
     monthly_avg = 0
@@ -226,7 +205,6 @@ elif st.session_state.current_tab == 1:
 
     if total > 0:
         col_chart1, col_chart2 = st.columns(2)
-        
         with col_chart1:
             st.subheader("Leadership Distribution")
             leadership_counts = pd.Series([s['leadership'] for s in snapshots]).value_counts().sort_index()
@@ -240,9 +218,8 @@ elif st.session_state.current_tab == 1:
                 "Physical": sum(1 for s in snapshots if s['areas']['physical']),
                 "Mental": sum(1 for s in snapshots if s['areas']['mental'])
             }
-            area_df = pd.DataFrame.from_dict(area_counts, orient='index', columns=['Count'])
-            st.bar_chart(area_df)
-        
+            st.bar_chart(area_counts)
+
         st.subheader("Ward Leadership Heatmap")
         heatmap_cols = st.columns(4)
         for i, ward in enumerate(wards):
@@ -255,49 +232,42 @@ elif st.session_state.current_tab == 1:
             with heatmap_cols[i % 4]:
                 st.markdown(f"""
                 <div class="heatmap-box" style="background-color: {bg_color}; color: {text_color};">
-                    <div style="font-weight:600; font-size:0.95rem;">{ward}</div>
-                    <div style="font-size:2.2rem; font-weight:bold;">{avg if avg else '—'}</div>
+                    <div style="font-weight:600;">{ward}</div>
+                    <div style="font-size:2.5rem; font-weight:bold;">{avg if avg else '—'}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
-# ====================== TAB 2: ALL SNAPSHOTS ======================
 elif st.session_state.current_tab == 2:
     st.markdown("### All YM Snapshots")
-    snapshots = st.session_state.snapshots.copy()
+    snapshots = sorted(st.session_state.snapshots, key=lambda x: x['date'], reverse=True)
     
     if not snapshots:
         st.info("No snapshots yet. Submit one using the **NEW SNAPSHOT** tab.")
     else:
-        snapshots.sort(key=lambda x: x['date'], reverse=True)
-        
         for snap in snapshots:
             areas_list = [k.capitalize() for k, v in snap['areas'].items() if v]
             areas_str = " • ".join(areas_list) if areas_list else "None"
             
-            with st.container():
+            st.markdown(f"""
+            <div class="snapshot-card">
+                <div style="display:flex; justify-content:space-between;">
+                    <div>
+                        <span style="font-size:1.35rem; font-weight:700;">{snap['ward']}</span>
+                        <span style="margin-left:1rem; color:#666;">{snap['month']}</span>
+                    </div>
+                </div>
+                <div style="margin-top:1rem; font-size:1.15rem;">
+                    Leadership: <span style="color:#002f6c; font-weight:700;">{snap['leadership']}/5</span>
+                </div>
+                <div style="margin-top:0.5rem;"><strong>Areas:</strong> {areas_str}</div>
+            """, unsafe_allow_html=True)
+            
+            if snap.get('support'):
                 st.markdown(f"""
-                <div class="snapshot-card">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <span style="font-size:1.3rem; font-weight:700;">{snap['ward']}</span>
-                            <span style="margin-left:1rem; color:#666;">{snap['month']}</span>
-                        </div>
-                    </div>
-                    <div style="margin-top:1rem; font-size:1.1rem;">
-                        Leadership: <span style="color:#002f6c; font-weight:700;">{snap['leadership']}/5</span>
-                    </div>
-                    <div style="margin-top:0.5rem; font-size:0.95rem;">
-                        <strong>Areas:</strong> {areas_str}
+                    <div style="margin:1rem 0; padding:1rem; background:#fef3c7; border-radius:1rem;">
+                        <strong>Support Needed:</strong><br>{snap['support']}
                     </div>
                 """, unsafe_allow_html=True)
-                
-                if snap.get('support'):
-                    st.markdown(f"""
-                        <div style="margin-top:1rem; padding:1rem; background:#fef3c7; border-radius:1rem; font-size:0.95rem;">
-                            <strong>Support Needed:</strong><br>{snap['support']}
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
 st.caption("All data is stored locally in your browser • Private to this device")
