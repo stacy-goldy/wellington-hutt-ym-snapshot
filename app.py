@@ -23,30 +23,13 @@ st.markdown("""
         height: 3.5rem;
         font-size: 1.1rem;
     }
-    .leadership-container {
+    .number-labels {
         display: flex;
-        justify-content: center;
-        gap: 12px;
-        margin: 1.2rem 0;
-    }
-    .leadership-btn {
-        width: 68px;
-        height: 68px;
-        border-radius: 9999px;
-        border: 3px solid #e5e7eb;
-        background: white;
-        font-size: 1.9rem;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        padding: 0 10px;
         font-weight: bold;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-    }
-    .leadership-btn.selected {
-        background: #dc2626 !important;
-        color: white !important;
-        border-color: #dc2626;
-        box-shadow: 0 10px 15px -3px rgb(220 38 38 / 0.4);
+        color: #444;
     }
     .snapshot-card {
         background: white;
@@ -86,7 +69,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Navigation
+# Navigation Tabs
 col1, col2, col3 = st.columns([1,1,1])
 with col1:
     if st.button("📋 NEW SNAPSHOT", use_container_width=True, type="primary" if st.session_state.current_tab == 0 else "secondary"):
@@ -106,20 +89,6 @@ if st.session_state.current_tab == 0:
     st.markdown("### Ward YM Snapshot")
     st.caption("One snapshot per unit per month")
 
-    # Leadership Score Selector (Outside Form)
-    st.markdown("**1. Youth Leadership Check (1-5)**")
-    st.caption("How much of your Wednesday night activities are actually planned and executed by the youth quorum presidencies right now?")
-
-    cols = st.columns(5)
-    for i in range(1, 6):
-        with cols[i-1]:
-            if st.session_state.leadership_score == i:
-                st.markdown(f'<div class="leadership-btn selected">{i}</div>', unsafe_allow_html=True)
-            else:
-                if st.button(str(i), key=f"lead_btn_{i}"):
-                    st.session_state.leadership_score = i
-                    st.rerun()
-
     with st.form("snapshot_form", clear_on_submit=True):
         col_a, col_b = st.columns(2)
         with col_a:
@@ -138,6 +107,30 @@ if st.session_state.current_tab == 0:
             selected_month_idx = st.selectbox("Month", range(len(month_options)), 
                                             format_func=lambda x: month_options[x], index=0, key="month_input")
             selected_month = month_values[selected_month_idx]
+
+        # ==================== LEADERSHIP CHECK ====================
+        st.markdown("**1. Youth Leadership Check (1-5)**")
+        st.caption("How much of your Wednesday night activities are actually planned and executed by the youth quorum presidencies right now?")
+
+        # Number labels above slider
+        st.markdown("""
+            <div class="number-labels">
+                <div>1</div>
+                <div>2</div>
+                <div>3</div>
+                <div>4</div>
+                <div>5</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        leadership_score = st.slider(
+            label="Leadership Score",
+            min_value=1,
+            max_value=5,
+            value=st.session_state.leadership_score,
+            step=1,
+            label_visibility="collapsed"
+        )
 
         st.markdown("**2. The Four Areas Check**")
         st.caption("In the past 4-6 weeks, have your youth experienced activities that explicitly touched on:")
@@ -166,7 +159,7 @@ if st.session_state.current_tab == 0:
                     "ward": ward,
                     "month": selected_month,
                     "date": datetime.now().strftime("%Y-%m-%d"),
-                    "leadership": st.session_state.leadership_score,
+                    "leadership": leadership_score,
                     "areas": {
                         "spiritual": spiritual,
                         "social": social,
@@ -177,11 +170,10 @@ if st.session_state.current_tab == 0:
                 }
                 st.session_state.snapshots.insert(0, new_snap)
                 st.success(f"✅ Snapshot saved for **{ward}** ({selected_month})")
-                # Reset for next entry
-                st.session_state.leadership_score = 3
+                st.session_state.leadership_score = 3  # Reset for next use
                 st.rerun()
 
-# ====================== TAB 1 & 2 remain the same ======================
+# ====================== TAB 1: DASHBOARD ======================
 elif st.session_state.current_tab == 1:
     snapshots = st.session_state.snapshots
     total = len(snapshots)
@@ -205,6 +197,7 @@ elif st.session_state.current_tab == 1:
 
     if total > 0:
         col_chart1, col_chart2 = st.columns(2)
+        
         with col_chart1:
             st.subheader("Leadership Distribution")
             leadership_counts = pd.Series([s['leadership'] for s in snapshots]).value_counts().sort_index()
@@ -237,9 +230,10 @@ elif st.session_state.current_tab == 1:
                 </div>
                 """, unsafe_allow_html=True)
 
+# ====================== TAB 2: ALL SNAPSHOTS ======================
 elif st.session_state.current_tab == 2:
     st.markdown("### All YM Snapshots")
-    snapshots = sorted(st.session_state.snapshots, key=lambda x: x['date'], reverse=True)
+    snapshots = sorted(st.session_state.snapshots, key=lambda x: x.get('date', ''), reverse=True)
     
     if not snapshots:
         st.info("No snapshots yet. Submit one using the **NEW SNAPSHOT** tab.")
