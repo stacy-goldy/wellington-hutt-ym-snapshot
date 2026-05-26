@@ -5,7 +5,7 @@ import json
 
 st.set_page_config(page_title="YM Snapshot", layout="wide", page_icon="⛪")
 
-# Custom CSS to match the HTML design
+# Custom CSS
 st.markdown("""
 <style>
     .main-header {
@@ -52,6 +52,34 @@ st.markdown("""
     .heatmap-box:hover {
         transform: scale(1.03);
     }
+    
+    /* Leadership Score Buttons */
+    .leadership-container {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin: 1rem 0;
+    }
+    .leadership-btn {
+        width: 65px;
+        height: 65px;
+        border-radius: 9999px;
+        border: 3px solid #e5e7eb;
+        background: white;
+        font-size: 1.8rem;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .leadership-btn.selected {
+        background: #dc2626 !important;
+        color: white !important;
+        border-color: #dc2626;
+        box-shadow: 0 10px 15px -3px rgb(220 38 38 / 0.3);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -60,6 +88,8 @@ if 'snapshots' not in st.session_state:
     st.session_state.snapshots = []
 if 'current_tab' not in st.session_state:
     st.session_state.current_tab = 0
+if 'leadership_score' not in st.session_state:
+    st.session_state.leadership_score = 3
 
 wards = ["Wellington Ward", "Hataitai Ward", "Hutt Valley Ward", "Avalon Branch",
          "Lower Hutt Ward", "Upper Hutt Ward", "Wairarapa Ward"]
@@ -97,7 +127,6 @@ if st.session_state.current_tab == 0:
         with col_a:
             ward = st.selectbox("Ward / Unit", wards, key="ward_input")
         with col_b:
-            # Month options
             now = datetime.now()
             months = []
             for i in range(12):
@@ -113,12 +142,25 @@ if st.session_state.current_tab == 0:
             selected_month = month_values[selected_month_idx]
 
         st.markdown("**1. Youth Leadership Check (1-5)**")
-        st.caption("How involved were quorum members in activity planning?: 1 = entirely planned by adult leaders, 5 = entirely planned by youth leaders")
+        st.caption("How much of your Wednesday night activities are actually planned and executed by the youth quorum presidencies right now?")
         
-        leadership_score = st.slider("", 1, 5, 3, key="leadership_slider", label_visibility="collapsed")
+        # Custom Leadership Buttons
+        st.markdown('<div class="leadership-container">', unsafe_allow_html=True)
         
+        for i in range(1, 6):
+            if st.session_state.leadership_score == i:
+                btn_style = "leadership-btn selected"
+            else:
+                btn_style = "leadership-btn"
+            
+            if st.button(str(i), key=f"lead_{i}", help=f"Score {i}"):
+                st.session_state.leadership_score = i
+                st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
         st.markdown("**2. The Four Areas Check**")
-        st.caption("During this month, which of the four focus areas were activities centred around?")
+        st.caption("In the past 4-6 weeks, have your youth experienced activities that explicitly touched on:")
         
         col_c, col_d = st.columns(2)
         with col_c:
@@ -129,13 +171,12 @@ if st.session_state.current_tab == 0:
             mental = st.checkbox("Mental Growth", key="mental_check")
 
         support = st.text_area("3. Target Support Needed", 
-                              placeholder="What is the #1 thing Stake leaders can do to help next month?",
+                              placeholder="What is the #1 thing our Stake Presidency can do to help next month?",
                               key="support_input")
 
         submitted = st.form_submit_button("Submit YM Snapshot", type="primary")
 
         if submitted:
-            # Check for duplicate
             existing = any(s['ward'] == ward and s['month'] == selected_month for s in st.session_state.snapshots)
             if existing:
                 st.error(f"A snapshot already exists for {ward} in {selected_month}.")
@@ -145,7 +186,7 @@ if st.session_state.current_tab == 0:
                     "ward": ward,
                     "month": selected_month,
                     "date": datetime.now().strftime("%Y-%m-%d"),
-                    "leadership": leadership_score,
+                    "leadership": st.session_state.leadership_score,
                     "areas": {
                         "spiritual": spiritual,
                         "social": social,
@@ -156,6 +197,8 @@ if st.session_state.current_tab == 0:
                 }
                 st.session_state.snapshots.insert(0, new_snap)
                 st.success(f"✅ Snapshot saved for **{ward}** ({selected_month})")
+                # Reset leadership for next entry
+                st.session_state.leadership_score = 3
                 st.rerun()
 
 # ====================== TAB 1: DASHBOARD ======================
@@ -165,12 +208,9 @@ elif st.session_state.current_tab == 1:
     
     st.markdown("### Stake YM Dashboard")
     
-    # Summary Cards
     col1, col2, col3 = st.columns(3)
     
     avg_leadership = round(sum(s['leadership'] for s in snapshots) / total, 1) if total > 0 else 0
-    
-    # Latest month average
     latest_month = snapshots[0]['month'] if snapshots else None
     monthly_avg = 0
     if latest_month:
@@ -184,7 +224,6 @@ elif st.session_state.current_tab == 1:
     with col3:
         st.metric("Monthly Progress", f"{monthly_avg}/5", latest_month or "—")
 
-    # Charts
     if total > 0:
         col_chart1, col_chart2 = st.columns(2)
         
@@ -204,14 +243,11 @@ elif st.session_state.current_tab == 1:
             area_df = pd.DataFrame.from_dict(area_counts, orient='index', columns=['Count'])
             st.bar_chart(area_df)
         
-        # Heatmap
         st.subheader("Ward Leadership Heatmap")
         heatmap_cols = st.columns(4)
-        
         for i, ward in enumerate(wards):
             ward_snaps = [s for s in snapshots if s['ward'] == ward]
             avg = round(sum(s['leadership'] for s in ward_snaps) / len(ward_snaps), 1) if ward_snaps else None
-            
             color_intensity = int((avg - 1) * 25) if avg else 10
             bg_color = f"hsl({color_intensity}, 85%, 55%)" if avg else "#e5e7eb"
             text_color = "white" if avg and avg > 3 else "black"
@@ -232,7 +268,6 @@ elif st.session_state.current_tab == 2:
     if not snapshots:
         st.info("No snapshots yet. Submit one using the **NEW SNAPSHOT** tab.")
     else:
-        # Sort by date descending
         snapshots.sort(key=lambda x: x['date'], reverse=True)
         
         for snap in snapshots:
@@ -247,10 +282,6 @@ elif st.session_state.current_tab == 2:
                             <span style="font-size:1.3rem; font-weight:700;">{snap['ward']}</span>
                             <span style="margin-left:1rem; color:#666;">{snap['month']}</span>
                         </div>
-                        <button onclick="deleteSnapshot({snap['id']})" 
-                                style="background:#fee2e2; color:#b91c1c; border:none; padding:0.4rem 1rem; border-radius:9999px; cursor:pointer;">
-                            Delete
-                        </button>
                     </div>
                     <div style="margin-top:1rem; font-size:1.1rem;">
                         Leadership: <span style="color:#002f6c; font-weight:700;">{snap['leadership']}/5</span>
@@ -260,7 +291,7 @@ elif st.session_state.current_tab == 2:
                     </div>
                 """, unsafe_allow_html=True)
                 
-                if snap['support']:
+                if snap.get('support'):
                     st.markdown(f"""
                         <div style="margin-top:1rem; padding:1rem; background:#fef3c7; border-radius:1rem; font-size:0.95rem;">
                             <strong>Support Needed:</strong><br>{snap['support']}
@@ -269,5 +300,4 @@ elif st.session_state.current_tab == 2:
                 
                 st.markdown("</div>", unsafe_allow_html=True)
 
-# Footer
 st.caption("All data is stored locally in your browser • Private to this device")
